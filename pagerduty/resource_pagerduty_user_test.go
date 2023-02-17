@@ -41,7 +41,7 @@ func testSweepUser(region string) error {
 	}
 
 	for _, user := range resp.Users {
-		if strings.HasPrefix(user.Name, "test") || strings.HasPrefix(user.Name, "tf") {
+		if strings.HasPrefix(user.Name, "tf") {
 			log.Printf("Destroying user %s (%s)", user.Name, user.ID)
 			if _, err := client.Users.Delete(user.ID); err != nil {
 				return err
@@ -187,6 +187,23 @@ func testAccCheckPagerDutyUserExists(n string) resource.TestCheckFunc {
 			return fmt.Errorf("User not found: %v - %v", rs.Primary.ID, found)
 		}
 
+		return nil
+	}
+}
+
+func testAccCheckPagerDutyUserNoExists(n string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		client, _ := testAccProvider.Meta().(*Config).Client()
+		for _, r := range s.RootModule().Resources {
+			if r.Type != "pagerduty_user" {
+				continue
+			}
+
+			if _, _, err := client.Users.Get(r.Primary.ID, &pagerduty.GetUserOptions{}); err == nil {
+				return fmt.Errorf("User still exists")
+			}
+
+		}
 		return nil
 	}
 }

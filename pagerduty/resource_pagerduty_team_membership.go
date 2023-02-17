@@ -304,15 +304,3 @@ func associateEPsBackToTeam(c *pagerduty.Client, teamID string, eps []string) er
 	}
 	return nil
 }
-
-func isTeamMember(user *pagerduty.User, teamID string) bool {
-	var found bool
-
-	for _, team := range user.Teams {
-		if teamID == team.ID {
-			found = true
-		}
-	}
-
-	return found
-}
