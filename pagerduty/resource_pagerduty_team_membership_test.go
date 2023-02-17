@@ -120,11 +120,12 @@ func TestAccPagerDutyTeamMembership_DestroyWithUserAndEscalationPolicyDependant(
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUsersAndEscalationPolicyDependant(user, team, role, escalationPolicy),
-				Check:  resource.ComposeTestCheckFunc(
-				//testAccCheckPagerDutyTeamMembershipExists("pagerduty_team_membership.foo"),
-				//testAccCheckPagerDutyUserExists("pagerduty_user.foo"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckPagerDutyTeamMembershipExists("pagerduty_team_membership.foo"),
+					testAccCheckPagerDutyUserExists("pagerduty_user.foo"),
 				),
 			},
+			// appears after uncommenting this
 			//{
 			//	Config: testAccCheckPagerDutyTeamMembershipDestroyWithUserAndEscalationPolicyDependantUpdated(user, team, role, escalationPolicy),
 			//	Check:  resource.ComposeTestCheckFunc(
