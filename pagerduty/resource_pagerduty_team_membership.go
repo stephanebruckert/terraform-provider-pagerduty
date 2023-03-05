@@ -2,7 +2,6 @@ package pagerduty
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -68,7 +67,7 @@ func fetchPagerDutyTeamMembershipWithRetries(d *schema.ResourceData, meta interf
 	if strings.Compare(neededRole, fetchedRole) == 0 {
 		return nil
 	}
-	log.Printf("[DEBUG] Warning role '%s' fetched from PD is different from the role '%s' from config for user: %s from team: %s, retrying...", fetchedRole, neededRole, userId, teamId)
+	fmt.Printf("[DEBUG] Warning role '%s' fetched from PD is different from the role '%s' from config for user: %s from team: %s, retrying...\n", fetchedRole, neededRole, userId, teamId)
 
 	retryCount++
 	time.Sleep(calculateDelay(retryCount))
@@ -82,7 +81,7 @@ func fetchPagerDutyTeamMembership(d *schema.ResourceData, meta interface{}, errC
 	}
 
 	userID, teamID := resourcePagerDutyParseColonCompoundID(d.Id())
-	log.Printf("[DEBUG] Reading user: %s from team: %s", userID, teamID)
+	fmt.Printf("[DEBUG] Reading user: %s from team: %s\n", userID, teamID)
 	return resource.Retry(2*time.Minute, func() *resource.RetryError {
 		resp, _, err := client.Teams.GetMembers(teamID, &pagerduty.GetMembersOptions{})
 		if err != nil {
@@ -105,7 +104,7 @@ func fetchPagerDutyTeamMembership(d *schema.ResourceData, meta interface{}, errC
 			}
 		}
 
-		log.Printf("[WARN] Removing %s since the user: %s is not a member of: %s", d.Id(), userID, teamID)
+		fmt.Printf("[WARN] Removing %s since the user: %s is not a member of: %s\n", d.Id(), userID, teamID)
 		d.SetId("")
 
 		return nil
@@ -121,7 +120,7 @@ func resourcePagerDutyTeamMembershipCreate(d *schema.ResourceData, meta interfac
 	teamID := d.Get("team_id").(string)
 	role := d.Get("role").(string)
 
-	log.Printf("[DEBUG] Adding user: %s to team: %s with role: %s", userID, teamID, role)
+	fmt.Printf("[DEBUG] Adding user: %s to team: %s with role: %s\n", userID, teamID, role)
 
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
 		if _, err := client.Teams.AddUserWithRole(teamID, userID, role); err != nil {
@@ -157,7 +156,7 @@ func resourcePagerDutyTeamMembershipUpdate(d *schema.ResourceData, meta interfac
 	teamID := d.Get("team_id").(string)
 	role := d.Get("role").(string)
 
-	log.Printf("[DEBUG] Updating user: %s to team: %s with role: %s", userID, teamID, role)
+	fmt.Printf("[DEBUG] Updating user: %s to team: %s with role: %s\n", userID, teamID, role)
 
 	// To update existing membership resource, We can use the same API as creating a new membership.
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
@@ -188,7 +187,7 @@ func resourcePagerDutyTeamMembershipDelete(d *schema.ResourceData, meta interfac
 
 	userID, teamID := resourcePagerDutyParseColonCompoundID(d.Id())
 
-	log.Printf("[DEBUG] Removing user: %s from team: %s", userID, teamID)
+	fmt.Printf("[DEBUG] Removing user: %s from team: %s\n", userID, teamID)
 
 	// Extracting Escalation Policies ids where this team referenced
 	epsAssociatedToUser, err := extractEPsAssociatedToUser(client, userID)
@@ -221,6 +220,7 @@ func resourcePagerDutyTeamMembershipDelete(d *schema.ResourceData, meta interfac
 
 	err = associateEPsBackToTeam(client, teamID, epsDissociatedFromTeam)
 	if err != nil {
+		fmt.Println(err.Error())
 		return err
 	}
 
@@ -272,11 +272,12 @@ func dissociateEPsFromTeam(c *pagerduty.Client, teamID string, eps []string) ([]
 			} else {
 				// Skip Escaltion Policies not found. This happens when a destroy
 				// operation is requested and Escalation Policy is destroyed first.
+				fmt.Println("SKIP here")
 				continue
 			}
 		}
 		epsDissociatedFromTeam = append(epsDissociatedFromTeam, ep)
-		log.Printf("[DEBUG] EscalationPolicy %s removed from team %s", ep, teamID)
+		fmt.Printf("[DEBUG] EscalationPolicy %s removed from team %s\n", ep, teamID)
 	}
 	return epsDissociatedFromTeam, nil
 }
@@ -300,7 +301,7 @@ func associateEPsBackToTeam(c *pagerduty.Client, teamID string, eps []string) er
 				continue
 			}
 		}
-		log.Printf("[DEBUG] EscalationPolicy %s added to team %s", ep, teamID)
+		fmt.Printf("[DEBUG] EscalationPolicy %s added to team %s\n", ep, teamID)
 	}
 	return nil
 }

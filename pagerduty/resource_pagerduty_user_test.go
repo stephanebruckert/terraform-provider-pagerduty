@@ -159,7 +159,7 @@ func testAccCheckPagerDutyUserDestroy(s *terraform.State) error {
 		}
 
 		if _, _, err := client.Users.Get(r.Primary.ID, &pagerduty.GetUserOptions{}); err == nil {
-			return fmt.Errorf("User still exists")
+			return fmt.Errorf("User still exists %s", r.Primary.ID)
 		}
 
 	}
@@ -200,7 +200,7 @@ func testAccCheckPagerDutyUserNoExists(n string) resource.TestCheckFunc {
 			}
 
 			if _, _, err := client.Users.Get(r.Primary.ID, &pagerduty.GetUserOptions{}); err == nil {
-				return fmt.Errorf("User still exists")
+				return fmt.Errorf("User still exists %s", r.Primary.ID)
 			}
 
 		}

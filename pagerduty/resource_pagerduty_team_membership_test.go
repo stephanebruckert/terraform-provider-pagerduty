@@ -107,6 +107,41 @@ func TestAccPagerDutyTeamMembership_DestroyWithEscalationPolicyDependant(t *test
 	})
 }
 
+func TestAccPagerDutyTeamMembership_DestroyWithOneUser(t *testing.T) {
+	user := fmt.Sprintf("tf-%s", acctest.RandString(5))
+	user2 := fmt.Sprintf("tf-%s", acctest.RandString(5))
+
+	team := fmt.Sprintf("tf-%s", acctest.RandString(5))
+	role := "manager"
+	escalationPolicy := fmt.Sprintf("tf-%s", acctest.RandString(5))
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckPagerDutyTeamMembershipDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCheckPagerDutyTeamMembershipDestroyWithOneUser(user, team, role, escalationPolicy, user2),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckPagerDutyTeamMembershipExists("pagerduty_team_membership.foo"),
+					testAccCheckPagerDutyTeamMembershipExists("pagerduty_team_membership.bar"),
+					testAccCheckPagerDutyUserExists("pagerduty_user.foo"),
+					testAccCheckPagerDutyUserExists("pagerduty_user.bar"),
+				),
+			},
+			{
+				Config: testAccCheckPagerDutyTeamMembershipDestroyWithOneUserUpdated(user, team, role, escalationPolicy, user2),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckPagerDutyTeamMembershipNoExists("pagerduty_team_membership.foo"),
+					testAccCheckPagerDutyTeamMembershipExists("pagerduty_team_membership.bar"),
+					testAccCheckPagerDutyUserNoExists("pagerduty_user.foo"),
+					testAccCheckPagerDutyUserExists("pagerduty_user.bar"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccPagerDutyTeamMembership_DestroyWithUsersAndEscalationPolicyDependant(t *testing.T) {
 	user := fmt.Sprintf("tf-%s", acctest.RandString(5))
 	user2 := fmt.Sprintf("tf-%s", acctest.RandString(5))
@@ -131,7 +166,7 @@ func TestAccPagerDutyTeamMembership_DestroyWithUsersAndEscalationPolicyDependant
 				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUsersAndEscalationPolicyDependantUpdated(user, team, role, escalationPolicy, user2),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckPagerDutyTeamMembershipNoExists("pagerduty_team_membership.foo"),
-					testAccCheckPagerDutyUserExists("pagerduty_user.foo2"),
+					testAccCheckPagerDutyUserNoExists("pagerduty_user.bar"),
 					testAccCheckPagerDutyUserNoExists("pagerduty_user.foo"),
 				),
 			},
@@ -140,6 +175,7 @@ func TestAccPagerDutyTeamMembership_DestroyWithUsersAndEscalationPolicyDependant
 }
 
 func testAccCheckPagerDutyTeamMembershipDestroy(s *terraform.State) error {
+	fmt.Println("testAccCheckPagerDutyTeamMembershipDestroy")
 	client, _ := testAccProvider.Meta().(*Config).Client()
 	for _, r := range s.RootModule().Resources {
 		if r.Type != "pagerduty_team_membership" {
@@ -287,7 +323,7 @@ resource "pagerduty_team_membership" "foo" {
 }
 
 resource "pagerduty_escalation_policy" "foo" {
-  name      = "%s"
+  name      = "%[4]v"
   num_loops = 2
   teams     = [pagerduty_team.foo.id]
 
@@ -330,16 +366,62 @@ resource "pagerduty_escalation_policy" "foo" {
 `, user, team, role, escalationPolicy)
 }
 
+func testAccCheckPagerDutyTeamMembershipDestroyWithOneUser(user, team, role, escalationPolicy, otherUser string) string {
+	return fmt.Sprintf(`
+resource "pagerduty_team" "foo" {
+  name        = "%[2]v"
+  description = "foo"
+}
+
+resource "pagerduty_team_membership" "foo" {
+  user_id = pagerduty_user.foo.id
+  team_id = pagerduty_team.foo.id
+  role    = "%[3]v"
+}
+
+resource "pagerduty_team_membership" "bar" {
+  user_id = pagerduty_user.bar.id
+  team_id = pagerduty_team.foo.id
+  role    = "%[3]v"
+}
+
+resource "pagerduty_user" "foo" {
+  name = "%[1]v"
+  email = "%[1]vfoo@dazn.com"
+}
+
+resource "pagerduty_user" "bar" {
+  name = "%[5]v"
+  email = "%[5]vbar@dazn.com"
+}
+`, user, team, role, escalationPolicy, otherUser)
+}
+
+func testAccCheckPagerDutyTeamMembershipDestroyWithOneUserUpdated(user, team, role, escalationPolicy, otherUser string) string {
+	return fmt.Sprintf(`
+resource "pagerduty_team_membership" "bar" {
+  user_id = pagerduty_user.bar.id
+  team_id = pagerduty_team.foo.id
+  role    = "%[3]v"
+}
+
+resource "pagerduty_user" "bar" {
+  name = "%[5]v"
+  email = "%[5]vbar@dazn.com"
+}
+
+resource "pagerduty_team" "foo" {
+  name        = "%[2]v"
+  description = "foo"
+}
+`, user, team, role, escalationPolicy, otherUser)
+}
+
 func testAccCheckPagerDutyTeamMembershipDestroyWithUsersAndEscalationPolicyDependant(user, team, role, escalationPolicy, otherUser string) string {
 	return fmt.Sprintf(`
 resource "pagerduty_user" "foo" {
   name = "%[1]v"
   email = "%[1]v@dazn.com"
-}
-
-resource "pagerduty_user" "foo2" {
-  name = "%[5]v"
-  email = "%[5]v@dazn.com"
 }
 
 resource "pagerduty_team" "foo" {
@@ -353,14 +435,8 @@ resource "pagerduty_team_membership" "foo" {
   role    = "%[3]v"
 }
 
-resource "pagerduty_team_membership" "foo2" {
-  user_id = pagerduty_user.foo2.id
-  team_id = pagerduty_team.foo.id
-  role    = "%[3]v"
-}
-
 resource "pagerduty_escalation_policy" "foo" {
-  name      = "%s"
+  name      = "%[5]v"
   num_loops = 2
   teams     = [pagerduty_team.foo.id]
 
@@ -371,48 +447,15 @@ resource "pagerduty_escalation_policy" "foo" {
       id   = pagerduty_user.foo.id
     }
   }
-
-  rule {
-    escalation_delay_in_minutes = 10
-    target {
-      type = "user_reference"
-      id   = pagerduty_user.foo2.id
-    }
-  }
 }
 `, user, team, role, escalationPolicy, otherUser)
 }
 
 func testAccCheckPagerDutyTeamMembershipDestroyWithUsersAndEscalationPolicyDependantUpdated(user, team, role, escalationPolicy, otherUser string) string {
 	return fmt.Sprintf(`
-resource "pagerduty_user" "foo2" {
-  name = "%[5]v"
-  email = "%[5]v@dazn.com"
-}
-
 resource "pagerduty_team" "foo" {
   name        = "%[2]v"
   description = "foo"
-}
-
-resource "pagerduty_team_membership" "foo2" {
-  user_id = pagerduty_user.foo2.id
-  team_id = pagerduty_team.foo.id
-  role    = "%[3]v"
-}
-
-resource "pagerduty_escalation_policy" "foo" {
-  name      = "%[4]s"
-  num_loops = 2
-  teams     = [pagerduty_team.foo.id]
-
-  rule {
-    escalation_delay_in_minutes = 10
-    target {
-      type = "user_reference"
-      id   = pagerduty_user.foo2.id
-    }
-  }
 }
 `, user, team, role, escalationPolicy, otherUser)
 }

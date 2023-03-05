@@ -2,7 +2,6 @@ package pagerduty
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -134,7 +133,7 @@ func buildUserStruct(d *schema.ResourceData) *pagerduty.User {
 	if attr, ok := d.GetOk("description"); ok {
 		user.Description = attr.(string)
 	}
-	log.Printf("[DEBUG] buildUserStruct-- d: .%v. user:%v.", d.Get("name").(string), user.Name)
+	fmt.Printf("[DEBUG] buildUserStruct-- d: .%v. user:%v.\n", d.Get("name").(string), user.Name)
 	return user
 }
 
@@ -146,7 +145,7 @@ func resourcePagerDutyUserCreate(d *schema.ResourceData, meta interface{}) error
 
 	user := buildUserStruct(d)
 
-	log.Printf("[INFO] Creating PagerDuty user %s", user.Name)
+	fmt.Printf("[INFO] Creating PagerDuty user %s\n", user.Name)
 
 	user, _, err = client.Users.Create(user)
 	if err != nil {
@@ -164,7 +163,7 @@ func resourcePagerDutyUserRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
-	log.Printf("[INFO] pooh Reading PagerDuty user %s", d.Id())
+	fmt.Printf("[INFO] Reading PagerDuty user %s\n", d.Id())
 
 	return resource.Retry(2*time.Minute, func() *resource.RetryError {
 		user, _, err := client.Users.Get(d.Id(), &pagerduty.GetUserOptions{})
@@ -208,7 +207,7 @@ func resourcePagerDutyUserUpdate(d *schema.ResourceData, meta interface{}) error
 
 	user := buildUserStruct(d)
 
-	log.Printf("[INFO] Updating PagerDuty user %s", d.Id())
+	fmt.Printf("[INFO] Updating PagerDuty user %s\n", d.Id())
 
 	// Retrying to give other resources (such as escalation policies) to delete
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
@@ -246,11 +245,11 @@ func resourcePagerDutyUserUpdate(d *schema.ResourceData, meta interface{}) error
 		for _, t := range remove {
 
 			if _, _, err := client.Teams.Get(t); err != nil {
-				log.Printf("[INFO] PagerDuty team: %s not found, removing dangling team reference for user %s", t, d.Id())
+				fmt.Printf("[INFO] PagerDuty team: %s not found, removing dangling team reference for user %s\n", t, d.Id())
 				continue
 			}
 
-			log.Printf("[INFO] Removing PagerDuty user %s from team: %s", d.Id(), t)
+			fmt.Printf("[INFO] Removing PagerDuty user %s from team: %s\n", d.Id(), t)
 
 			if _, err := client.Teams.RemoveUser(t, d.Id()); err != nil {
 				return err
@@ -258,7 +257,7 @@ func resourcePagerDutyUserUpdate(d *schema.ResourceData, meta interface{}) error
 		}
 
 		for _, t := range add {
-			log.Printf("[INFO] Adding PagerDuty user %s to team: %s", d.Id(), t)
+			fmt.Printf("[INFO] Adding PagerDuty user %s to team: %s\n", d.Id(), t)
 
 			if _, err := client.Teams.AddUser(t, d.Id()); err != nil {
 				return err
@@ -272,17 +271,20 @@ func resourcePagerDutyUserUpdate(d *schema.ResourceData, meta interface{}) error
 func resourcePagerDutyUserDelete(d *schema.ResourceData, meta interface{}) error {
 	client, err := meta.(*Config).Client()
 	if err != nil {
+		fmt.Printf("[ERROR] Deleting PagerDuty user %s\n", d.Id())
 		return err
 	}
-
-	log.Printf("[INFO] Deleting PagerDuty user %s", d.Id())
+	fmt.Printf("[INFO] Deleting PagerDuty user %s %s\n", d.Id(), d.Get("email"))
 
 	// Retrying to give other resources (such as escalation policies) to delete
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
 		if _, err := client.Users.Delete(d.Id()); err != nil {
 			if isErrCode(err, 400) {
+				fmt.Printf("[ERROR] Retrying Deleting PagerDuty user %s\n", d.Id())
+
 				return resource.RetryableError(err)
 			}
+			fmt.Printf("[ERROR] Retrying Deleting PagerDuty user %s\n", d.Id())
 
 			return resource.NonRetryableError(err)
 		}
@@ -294,6 +296,7 @@ func resourcePagerDutyUserDelete(d *schema.ResourceData, meta interface{}) error
 	}
 
 	d.SetId("")
+	fmt.Printf("[INFO] Set id '' Deleting PagerDuty user %s\n", d.Id())
 
 	// giving the API time to catchup
 	time.Sleep(time.Second)
