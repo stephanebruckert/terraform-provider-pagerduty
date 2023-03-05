@@ -194,15 +194,8 @@ func testAccCheckPagerDutyUserExists(n string) resource.TestCheckFunc {
 func testAccCheckPagerDutyUserNoExists(n string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		client, _ := testAccProvider.Meta().(*Config).Client()
-		for _, r := range s.RootModule().Resources {
-			if r.Type != "pagerduty_user" {
-				continue
-			}
-
-			if _, _, err := client.Users.Get(r.Primary.ID, &pagerduty.GetUserOptions{}); err == nil {
-				return fmt.Errorf("User still exists %s", r.Primary.ID)
-			}
-
+		if _, _, err := client.Users.Get(n, &pagerduty.GetUserOptions{}); err == nil {
+			return fmt.Errorf("User still exists %s", n)
 		}
 		return nil
 	}

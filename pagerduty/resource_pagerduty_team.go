@@ -1,7 +1,7 @@
 package pagerduty
 
 import (
-	"log"
+	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -65,7 +65,7 @@ func resourcePagerDutyTeamCreate(d *schema.ResourceData, meta interface{}) error
 
 	team := buildTeamStruct(d)
 
-	log.Printf("[INFO] Creating PagerDuty team %s", team.Name)
+	fmt.Printf("[INFO] Creating PagerDuty team %s\n", team.Name)
 
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
 		if team, _, err := client.Teams.Create(team); err != nil {
@@ -90,7 +90,7 @@ func resourcePagerDutyTeamRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
-	log.Printf("[INFO] Reading PagerDuty team %s", d.Id())
+	fmt.Printf("[INFO] Reading PagerDuty team %s\n", d.Id())
 
 	return resource.Retry(30*time.Second, func() *resource.RetryError {
 		if team, _, err := client.Teams.Get(d.Id()); err != nil {
@@ -113,7 +113,7 @@ func resourcePagerDutyTeamUpdate(d *schema.ResourceData, meta interface{}) error
 
 	team := buildTeamStruct(d)
 
-	log.Printf("[INFO] Updating PagerDuty team %s", d.Id())
+	fmt.Printf("[INFO] Updating PagerDuty team %s\n", d.Id())
 
 	retryErr := resource.Retry(30*time.Second, func() *resource.RetryError {
 		if _, _, err := client.Teams.Update(d.Id(), team); err != nil {
@@ -134,7 +134,7 @@ func resourcePagerDutyTeamDelete(d *schema.ResourceData, meta interface{}) error
 		return err
 	}
 
-	log.Printf("[INFO] Deleting PagerDuty team %s", d.Id())
+	fmt.Printf("[INFO] Deleting PagerDuty team %s\n", d.Id())
 
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
 		if _, err := client.Teams.Delete(d.Id()); err != nil {

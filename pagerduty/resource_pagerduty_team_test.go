@@ -134,10 +134,33 @@ func testAccCheckPagerDutyTeamDestroy(s *terraform.State) error {
 
 func testAccCheckPagerDutyTeamExists(n string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[n]
+		if !ok {
+			return fmt.Errorf("Team not found: %s", n)
+		}
+		if rs.Primary.ID == "" {
+			return fmt.Errorf("No team ID is set")
+		}
+
+		client, _ := testAccProvider.Meta().(*Config).Client()
+		fmt.Println(rs.Primary.ID)
+		if _, _, err := client.Teams.Get(rs.Primary.ID); err != nil {
+			return fmt.Errorf("Received an error retrieving team %s ID: %s", err, rs.Primary.ID)
+		}
+		return nil
+	}
+}
+
+func testAccCheckPagerDutyTeamNoExists(n string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
 		client, _ := testAccProvider.Meta().(*Config).Client()
 		for _, r := range s.RootModule().Resources {
-			if _, _, err := client.Teams.Get(r.Primary.ID); err != nil {
-				return fmt.Errorf("Received an error retrieving team %s ID: %s", err, r.Primary.ID)
+			if r.Type != "pagerduty_team" {
+				continue
+			}
+
+			if _, _, err := client.Teams.Get(r.Primary.ID); err == nil {
+				return fmt.Errorf("Team still exists %s", r.Primary.ID)
 			}
 		}
 		return nil
