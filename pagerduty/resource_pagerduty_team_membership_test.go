@@ -398,6 +398,28 @@ resource "pagerduty_user" "bar" {
   name = "%[5]v"
   email = "%[5]vbar@dazn.com"
 }
+
+resource "pagerduty_escalation_policy" "foo" {
+  name      = "%[4]s"
+  num_loops = 2
+  teams     = [pagerduty_team.foo.id]
+
+  rule {
+    escalation_delay_in_minutes = 10
+    target {
+      type = "user_reference"
+      id   = pagerduty_user.foo.id
+    }
+  }
+
+  rule {
+    escalation_delay_in_minutes = 10
+    target {
+      type = "user_reference"
+      id   = pagerduty_user.bar.id
+    }
+  }
+}
 `, user, team, role, escalationPolicy, otherUser, start, rotationVirtualStart)
 }
 
