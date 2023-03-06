@@ -60,6 +60,8 @@ func fetchPagerDutyTeamMembershipWithRetries(d *schema.ResourceData, meta interf
 	if retryCount >= maxRetries() {
 		return nil
 	}
+	fmt.Println("2")
+
 	if err := fetchPagerDutyTeamMembership(d, meta, errCallback); err != nil {
 		return err
 	}
@@ -79,6 +81,7 @@ func fetchPagerDutyTeamMembership(d *schema.ResourceData, meta interface{}, errC
 	if err != nil {
 		return err
 	}
+	fmt.Println("4")
 
 	userID, teamID := resourcePagerDutyParseColonCompoundID(d.Id())
 	fmt.Printf("[DEBUG] Reading user: %s from team: %s\n", userID, teamID)
@@ -138,11 +141,13 @@ func resourcePagerDutyTeamMembershipCreate(d *schema.ResourceData, meta interfac
 	}
 
 	d.SetId(fmt.Sprintf("%s:%s", userID, teamID))
-
+	fmt.Println("1")
 	return fetchPagerDutyTeamMembershipWithRetries(d, meta, genError, 0, d.Get("role").(string))
 }
 
 func resourcePagerDutyTeamMembershipRead(d *schema.ResourceData, meta interface{}) error {
+	fmt.Println("3")
+
 	return fetchPagerDutyTeamMembership(d, meta, handleNotFoundError)
 }
 
@@ -195,10 +200,13 @@ func resourcePagerDutyTeamMembershipDelete(d *schema.ResourceData, meta interfac
 		return err
 	}
 
+	fmt.Printf("associated %+v\n", epsAssociatedToUser)
+
 	epsDissociatedFromTeam, err := dissociateEPsFromTeam(client, teamID, epsAssociatedToUser)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("disassociated %+v\n", epsAssociatedToUser)
 
 	// Retrying to give other resources (such as escalation policies) to delete
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
@@ -293,13 +301,7 @@ func associateEPsBackToTeam(c *pagerduty.Client, teamID string, eps []string) er
 			return nil
 		})
 		if retryErr != nil {
-			if !isErrCode(retryErr, 404) {
-				return fmt.Errorf("%w; Error while trying to associate back team %q to Escalation Policy %q. Resource succesfully deleted, but some team association couldn't be completed, so you need to run \"terraform plan -refresh-only\" and again \"terraform apply/destroy\" in order to remediate the drift", retryErr, teamID, ep)
-			} else {
-				// Skip Escaltion Policies not found. This happens when a destroy
-				// operation is requested and Escalation Policy is destroyed first.
-				continue
-			}
+			continue
 		}
 		fmt.Printf("[DEBUG] EscalationPolicy %s added to team %s\n", ep, teamID)
 	}
