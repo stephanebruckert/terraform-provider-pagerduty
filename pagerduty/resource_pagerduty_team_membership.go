@@ -200,19 +200,19 @@ func resourcePagerDutyTeamMembershipDelete(d *schema.ResourceData, meta interfac
 		return err
 	}
 
-	fmt.Printf("associated %+v\n", epsAssociatedToUser)
-
 	epsDissociatedFromTeam, err := dissociateEPsFromTeam(client, teamID, epsAssociatedToUser)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("disassociated %+v\n", epsAssociatedToUser)
 
 	// Retrying to give other resources (such as escalation policies) to delete
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
+		fmt.Printf("this shit1 %s\n", userID)
+
 		if _, err := client.Teams.RemoveUser(teamID, userID); err != nil {
 			if isErrCode(err, 400) {
-				return resource.RetryableError(err)
+				fmt.Println("this shit2")
+				return nil
 			}
 
 			return resource.NonRetryableError(err)

@@ -491,6 +491,98 @@ resource "pagerduty_escalation_policy" "foo" {
 `, user, team, role, escalationPolicy, otherUser)
 }
 
+func TestAccPagerDutyTeamMembership_DestroyWithUserAndTeam2(t *testing.T) {
+	user := fmt.Sprintf("tf-%s", acctest.RandString(5))
+	user2 := fmt.Sprintf("tf-%s", acctest.RandString(5))
+
+	team := fmt.Sprintf("tf-%s", acctest.RandString(5))
+	role := "manager"
+	escalationPolicy := fmt.Sprintf("tf-%s", acctest.RandString(5))
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckPagerDutyTeamMembershipDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUserAndTeam2(user, team, role, escalationPolicy, user2),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckPagerDutyTeamMembershipExists("pagerduty_team_membership.foo"),
+					testAccCheckPagerDutyTeamExists("pagerduty_team.foo"),
+					testAccCheckPagerDutyUserExists("pagerduty_user.foo"),
+				),
+			},
+			{
+				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUserAndTeamUpdated2(user, team, role, escalationPolicy, user2),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckPagerDutyTeamMembershipNoExists("pagerduty_team_membership.foo"),
+					testAccCheckPagerDutyTeamExists("pagerduty_team.foo"),
+					testAccCheckPagerDutyUserExists("pagerduty_user.foo"),
+				),
+			},
+		},
+	})
+}
+
+func testAccCheckPagerDutyTeamMembershipDestroyWithUserAndTeam2(user, team, role, escalationPolicy, otherUser string) string {
+	location := "America/New_York"
+
+	start := timeNowInLoc(location).Add(24 * time.Hour).Round(1 * time.Hour).Format(time.RFC3339)
+	rotationVirtualStart := timeNowInLoc(location).Add(24 * time.Hour).Round(1 * time.Hour).Format(time.RFC3339)
+
+	return fmt.Sprintf(`
+resource "pagerduty_team" "foo" {
+  name        = "%[2]v"
+  description = "foo"
+}
+
+resource "pagerduty_team_membership" "foo" {
+  user_id = pagerduty_user.foo.id
+  team_id = pagerduty_team.foo.id
+  role    = "%[3]v"
+}
+
+resource "pagerduty_user" "foo" {
+  name = "%[1]v"
+  email = "%[1]vfoo@dazn.com"
+}
+
+`, user, team, role, escalationPolicy, otherUser, start, rotationVirtualStart)
+}
+
+func testAccCheckPagerDutyTeamMembershipDestroyWithUserAndTeamUpdated2(user, team, role, escalationPolicy, otherUser string) string {
+	location := "America/New_York"
+
+	start := timeNowInLoc(location).Add(24 * time.Hour).Round(1 * time.Hour).Format(time.RFC3339)
+	rotationVirtualStart := timeNowInLoc(location).Add(24 * time.Hour).Round(1 * time.Hour).Format(time.RFC3339)
+
+	return fmt.Sprintf(`
+resource "pagerduty_team" "foo" {
+  name        = "%[2]v"
+  description = "foo"
+}
+
+resource "pagerduty_user" "foo" {
+  name = "%[1]v"
+  email = "%[1]vfoo@dazn.com"
+}
+
+resource "pagerduty_escalation_policy" "foo" {
+  name      = "%[4]s"
+  num_loops = 2
+  teams     = [pagerduty_team.foo.id]
+
+  rule {
+    escalation_delay_in_minutes = 10
+    target {
+      type = "user_reference"
+      id   = pagerduty_user.foo.id
+    }
+  }
+}
+`, user, team, role, escalationPolicy, otherUser, start, rotationVirtualStart)
+}
+
 func testAccCheckPagerDutyTeamMembershipDestroyWithUsersAndEscalationPolicyDependantUpdated(user, team, role, escalationPolicy, otherUser string) string {
 	return fmt.Sprintf(`
 resource "pagerduty_team" "foo" {
