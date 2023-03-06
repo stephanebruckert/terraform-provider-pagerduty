@@ -420,27 +420,6 @@ resource "pagerduty_escalation_policy" "foo" {
     }
   }
 }
-
-resource "pagerduty_schedule" "foo" {
-  name = "%[4]s"
-
-  time_zone   = "America/New_York"
-  description = "foo"
-
-  layer {
-    name                         = "foo"
-    start                        = "%[6]s"
-    rotation_virtual_start       = "%[7]s"
-    rotation_turn_length_seconds = 86400
-    users                        = [pagerduty_user.foo.id, pagerduty_user.bar.id]
-
-    restriction {
-      type              = "daily_restriction"
-      start_time_of_day = "08:00:00"
-      duration_seconds  = 32101
-    }
-  }
-}
 `, user, team, role, escalationPolicy, otherUser, start, rotationVirtualStart)
 }
 
@@ -471,27 +450,6 @@ resource "pagerduty_escalation_policy" "foo" {
     target {
       type = "user_reference"
       id   = pagerduty_user.foo.id
-    }
-  }
-}
-
-resource "pagerduty_schedule" "foo" {
-  name = "%[4]s"
-
-  time_zone   = "America/New_York"
-  description = "foo"
-
-  layer {
-    name                         = "foo"
-    start                        = "%[6]s"
-    rotation_virtual_start       = "%[7]s"
-    rotation_turn_length_seconds = 86400
-    users                        = [pagerduty_user.foo.id]
-
-    restriction {
-      type              = "daily_restriction"
-      start_time_of_day = "08:00:00"
-      duration_seconds  = 32101
     }
   }
 }
