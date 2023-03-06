@@ -3,6 +3,7 @@ package pagerduty
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -132,8 +133,8 @@ func TestAccPagerDutyTeamMembership_DestroyWithUserAndTeam(t *testing.T) {
 				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUserAndTeamUpdated(user, team, role, escalationPolicy, user2),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckPagerDutyTeamMembershipNoExists("pagerduty_team_membership.foo"),
-					testAccCheckPagerDutyTeamNoExists("pagerduty_team.foo"),
-					testAccCheckPagerDutyUserNoExists("pagerduty_user.foo"),
+					testAccCheckPagerDutyTeamExists("pagerduty_team.foo"),
+					testAccCheckPagerDutyUserExists("pagerduty_user.foo"),
 				),
 			},
 		},
@@ -163,9 +164,9 @@ func TestAccPagerDutyTeamMembership_DestroyWithUsersAndEscalationPolicyDependant
 			{
 				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUsersAndEscalationPolicyDependantUpdated(user, team, role, escalationPolicy, user2),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckPagerDutyTeamMembershipNoExists("pagerduty_team_membership.foo"),
+					testAccCheckPagerDutyTeamMembershipNoExists("pagerduty_team_membership.bar"),
 					testAccCheckPagerDutyUserNoExists("pagerduty_user.bar"),
-					testAccCheckPagerDutyUserNoExists("pagerduty_user.foo"),
+					testAccCheckPagerDutyUserExists("pagerduty_user.foo"),
 				),
 			},
 		},
@@ -365,6 +366,11 @@ resource "pagerduty_escalation_policy" "foo" {
 }
 
 func testAccCheckPagerDutyTeamMembershipDestroyWithUserAndTeam(user, team, role, escalationPolicy, otherUser string) string {
+	location := "America/New_York"
+
+	start := timeNowInLoc(location).Add(24 * time.Hour).Round(1 * time.Hour).Format(time.RFC3339)
+	rotationVirtualStart := timeNowInLoc(location).Add(24 * time.Hour).Round(1 * time.Hour).Format(time.RFC3339)
+
 	return fmt.Sprintf(`
 resource "pagerduty_team" "foo" {
   name        = "%[2]v"
@@ -382,20 +388,114 @@ resource "pagerduty_user" "foo" {
   email = "%[1]vfoo@dazn.com"
 }
 
-resource "pagerduty_user" "always" {
-  name = "always"
-  email = "%[1]valways@dazn.com"
+resource "pagerduty_team_membership" "bar" {
+  user_id = pagerduty_user.bar.id
+  team_id = pagerduty_team.foo.id
+  role    = "%[3]v"
 }
-`, user, team, role, escalationPolicy, otherUser)
+
+resource "pagerduty_user" "bar" {
+  name = "%[5]v"
+  email = "%[5]vbar@dazn.com"
+}
+
+resource "pagerduty_escalation_policy" "foo" {
+  name      = "%[4]s"
+  num_loops = 2
+  teams     = [pagerduty_team.foo.id]
+
+  rule {
+    escalation_delay_in_minutes = 10
+    target {
+      type = "user_reference"
+      id   = pagerduty_user.foo.id
+    }
+  }
+
+  rule {
+    escalation_delay_in_minutes = 10
+    target {
+      type = "user_reference"
+      id   = pagerduty_user.bar.id
+    }
+  }
+}
+
+resource "pagerduty_schedule" "foo" {
+  name = "%[4]s"
+
+  time_zone   = "America/New_York"
+  description = "foo"
+
+  layer {
+    name                         = "foo"
+    start                        = "%[6]s"
+    rotation_virtual_start       = "%[7]s"
+    rotation_turn_length_seconds = 86400
+    users                        = [pagerduty_user.foo.id, pagerduty_user.bar.id]
+
+    restriction {
+      type              = "daily_restriction"
+      start_time_of_day = "08:00:00"
+      duration_seconds  = 32101
+    }
+  }
+}
+`, user, team, role, escalationPolicy, otherUser, start, rotationVirtualStart)
 }
 
 func testAccCheckPagerDutyTeamMembershipDestroyWithUserAndTeamUpdated(user, team, role, escalationPolicy, otherUser string) string {
+	location := "America/New_York"
+
+	start := timeNowInLoc(location).Add(24 * time.Hour).Round(1 * time.Hour).Format(time.RFC3339)
+	rotationVirtualStart := timeNowInLoc(location).Add(24 * time.Hour).Round(1 * time.Hour).Format(time.RFC3339)
+
 	return fmt.Sprintf(`
-resource "pagerduty_user" "always" {
-  name = "always"
-  email = "%[1]valways@dazn.com"
+resource "pagerduty_team" "foo" {
+  name        = "%[2]v"
+  description = "foo"
 }
-`, user, team, role, escalationPolicy, otherUser)
+
+resource "pagerduty_user" "foo" {
+  name = "%[1]v"
+  email = "%[1]vfoo@dazn.com"
+}
+
+resource "pagerduty_escalation_policy" "foo" {
+  name      = "%[4]s"
+  num_loops = 2
+  teams     = [pagerduty_team.foo.id]
+
+  rule {
+    escalation_delay_in_minutes = 10
+    target {
+      type = "user_reference"
+      id   = pagerduty_user.foo.id
+    }
+  }
+}
+
+resource "pagerduty_schedule" "foo" {
+  name = "%[4]s"
+
+  time_zone   = "America/New_York"
+  description = "foo"
+
+  layer {
+    name                         = "foo"
+    start                        = "%[6]s"
+    rotation_virtual_start       = "%[7]s"
+    rotation_turn_length_seconds = 86400
+    users                        = [pagerduty_user.foo.id]
+
+    restriction {
+      type              = "daily_restriction"
+      start_time_of_day = "08:00:00"
+      duration_seconds  = 32101
+    }
+  }
+}
+`, user, team, role, escalationPolicy, otherUser, start, rotationVirtualStart)
 }
 
 func testAccCheckPagerDutyTeamMembershipDestroyWithUsersAndEscalationPolicyDependant(user, team, role, escalationPolicy, otherUser string) string {
