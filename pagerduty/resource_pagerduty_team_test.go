@@ -143,7 +143,6 @@ func testAccCheckPagerDutyTeamExists(n string) resource.TestCheckFunc {
 		}
 
 		client, _ := testAccProvider.Meta().(*Config).Client()
-		fmt.Println(rs.Primary.ID)
 		if _, _, err := client.Teams.Get(rs.Primary.ID); err != nil {
 			return fmt.Errorf("Received an error retrieving team %s ID: %s", err, rs.Primary.ID)
 		}
@@ -151,25 +150,8 @@ func testAccCheckPagerDutyTeamExists(n string) resource.TestCheckFunc {
 	}
 }
 
-func testAccCheckPagerDutyTeamNoExists(n string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		client, _ := testAccProvider.Meta().(*Config).Client()
-		for _, r := range s.RootModule().Resources {
-			if r.Type != "pagerduty_team" {
-				continue
-			}
-
-			if _, _, err := client.Teams.Get(r.Primary.ID); err == nil {
-				return fmt.Errorf("Team still exists %s", r.Primary.ID)
-			}
-		}
-		return nil
-	}
-}
-
 func testAccCheckPagerDutyTeamConfig(team string) string {
 	return fmt.Sprintf(`
-
 resource "pagerduty_team" "foo" {
   name        = "%s"
   description = "foo"

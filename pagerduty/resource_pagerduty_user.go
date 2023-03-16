@@ -2,6 +2,7 @@ package pagerduty
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -133,7 +134,7 @@ func buildUserStruct(d *schema.ResourceData) *pagerduty.User {
 	if attr, ok := d.GetOk("description"); ok {
 		user.Description = attr.(string)
 	}
-	fmt.Printf("[DEBUG] buildUserStruct-- d: .%v. user:%v.\n", d.Get("name").(string), user.Name)
+	log.Printf("[DEBUG] buildUserStruct-- d: .%v. user:%v.", d.Get("name").(string), user.Name)
 	return user
 }
 
@@ -145,7 +146,7 @@ func resourcePagerDutyUserCreate(d *schema.ResourceData, meta interface{}) error
 
 	user := buildUserStruct(d)
 
-	fmt.Printf("[INFO] Creating PagerDuty user %s\n", user.Name)
+	log.Printf("[INFO] Creating PagerDuty user %s", user.Name)
 
 	user, _, err = client.Users.Create(user)
 	if err != nil {
@@ -163,7 +164,7 @@ func resourcePagerDutyUserRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
-	fmt.Printf("[INFO] Reading PagerDuty user %s\n", d.Id())
+	log.Printf("[INFO] Reading PagerDuty user %s", d.Id())
 
 	return resource.Retry(2*time.Minute, func() *resource.RetryError {
 		user, _, err := client.Users.Get(d.Id(), &pagerduty.GetUserOptions{})
@@ -207,7 +208,7 @@ func resourcePagerDutyUserUpdate(d *schema.ResourceData, meta interface{}) error
 
 	user := buildUserStruct(d)
 
-	fmt.Printf("[INFO] Updating PagerDuty user %s\n", d.Id())
+	log.Printf("[INFO] Updating PagerDuty user %s", d.Id())
 
 	// Retrying to give other resources (such as escalation policies) to delete
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
@@ -245,11 +246,11 @@ func resourcePagerDutyUserUpdate(d *schema.ResourceData, meta interface{}) error
 		for _, t := range remove {
 
 			if _, _, err := client.Teams.Get(t); err != nil {
-				fmt.Printf("[INFO] PagerDuty team: %s not found, removing dangling team reference for user %s\n", t, d.Id())
+				log.Printf("[INFO] PagerDuty team: %s not found, removing dangling team reference for user %s", t, d.Id())
 				continue
 			}
 
-			fmt.Printf("[INFO] Removing PagerDuty user %s from team: %s\n", d.Id(), t)
+			log.Printf("[INFO] Removing PagerDuty user %s from team: %s", d.Id(), t)
 
 			if _, err := client.Teams.RemoveUser(t, d.Id()); err != nil {
 				return err
@@ -257,7 +258,7 @@ func resourcePagerDutyUserUpdate(d *schema.ResourceData, meta interface{}) error
 		}
 
 		for _, t := range add {
-			fmt.Printf("[INFO] Adding PagerDuty user %s to team: %s\n", d.Id(), t)
+			log.Printf("[INFO] Adding PagerDuty user %s to team: %s", d.Id(), t)
 
 			if _, err := client.Teams.AddUser(t, d.Id()); err != nil {
 				return err
@@ -271,20 +272,20 @@ func resourcePagerDutyUserUpdate(d *schema.ResourceData, meta interface{}) error
 func resourcePagerDutyUserDelete(d *schema.ResourceData, meta interface{}) error {
 	client, err := meta.(*Config).Client()
 	if err != nil {
-		fmt.Printf("[ERROR] Deleting PagerDuty user %s\n", d.Id())
+		log.Printf("[ERROR] Deleting PagerDuty user %s", d.Id())
 		return err
 	}
-	fmt.Printf("[INFO] Deleting PagerDuty user %s %s\n", d.Id(), d.Get("email"))
+	log.Printf("[INFO] Deleting PagerDuty user %s %s", d.Id(), d.Get("email"))
 
 	// Retrying to give other resources (such as escalation policies) to delete
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
 		if _, err := client.Users.Delete(d.Id()); err != nil {
 			if isErrCode(err, 400) {
-				fmt.Printf("[ERROR] Retrying Deleting PagerDuty user %s\n", d.Id())
+				log.Printf("[ERROR IGNORED] Retrying Deleting PagerDuty user %s", d.Id())
 
 				return resource.RetryableError(err)
 			}
-			fmt.Printf("[ERROR] Retrying Deleting PagerDuty user %s\n", d.Id())
+			log.Printf("[ERROR] Retrying Deleting PagerDuty user %s", d.Id())
 
 			return resource.NonRetryableError(err)
 		}
@@ -296,7 +297,7 @@ func resourcePagerDutyUserDelete(d *schema.ResourceData, meta interface{}) error
 	}
 
 	d.SetId("")
-	fmt.Printf("[INFO] Set id '' Deleting PagerDuty user %s\n", d.Id())
+	log.Printf("[INFO] Deleted PagerDuty user %s", d.Id())
 
 	// giving the API time to catchup
 	time.Sleep(time.Second)

@@ -2,6 +2,7 @@ package pagerduty
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -60,7 +61,6 @@ func fetchPagerDutyTeamMembershipWithRetries(d *schema.ResourceData, meta interf
 	if retryCount >= maxRetries() {
 		return nil
 	}
-	fmt.Println("2")
 
 	if err := fetchPagerDutyTeamMembership(d, meta, errCallback); err != nil {
 		return err
@@ -69,7 +69,7 @@ func fetchPagerDutyTeamMembershipWithRetries(d *schema.ResourceData, meta interf
 	if strings.Compare(neededRole, fetchedRole) == 0 {
 		return nil
 	}
-	fmt.Printf("[DEBUG] Warning role '%s' fetched from PD is different from the role '%s' from config for user: %s from team: %s, retrying...\n", fetchedRole, neededRole, userId, teamId)
+	log.Printf("[DEBUG] Warning role '%s' fetched from PD is different from the role '%s' from config for user: %s from team: %s, retrying...", fetchedRole, neededRole, userId, teamId)
 
 	retryCount++
 	time.Sleep(calculateDelay(retryCount))
@@ -81,10 +81,9 @@ func fetchPagerDutyTeamMembership(d *schema.ResourceData, meta interface{}, errC
 	if err != nil {
 		return err
 	}
-	fmt.Println("4")
 
 	userID, teamID := resourcePagerDutyParseColonCompoundID(d.Id())
-	fmt.Printf("[DEBUG] Reading user: %s from team: %s\n", userID, teamID)
+	log.Printf("[DEBUG] Reading user: %s from team: %s", userID, teamID)
 	return resource.Retry(2*time.Minute, func() *resource.RetryError {
 		resp, _, err := client.Teams.GetMembers(teamID, &pagerduty.GetMembersOptions{})
 		if err != nil {
@@ -107,7 +106,7 @@ func fetchPagerDutyTeamMembership(d *schema.ResourceData, meta interface{}, errC
 			}
 		}
 
-		fmt.Printf("[WARN] Removing %s since the user: %s is not a member of: %s\n", d.Id(), userID, teamID)
+		log.Printf("[WARN] Removing %s since the user: %s is not a member of: %s", d.Id(), userID, teamID)
 		d.SetId("")
 
 		return nil
@@ -123,7 +122,7 @@ func resourcePagerDutyTeamMembershipCreate(d *schema.ResourceData, meta interfac
 	teamID := d.Get("team_id").(string)
 	role := d.Get("role").(string)
 
-	fmt.Printf("[DEBUG] Adding user: %s to team: %s with role: %s\n", userID, teamID, role)
+	log.Printf("[DEBUG] Adding user: %s to team: %s with role: %s", userID, teamID, role)
 
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
 		if _, err := client.Teams.AddUserWithRole(teamID, userID, role); err != nil {
@@ -141,13 +140,10 @@ func resourcePagerDutyTeamMembershipCreate(d *schema.ResourceData, meta interfac
 	}
 
 	d.SetId(fmt.Sprintf("%s:%s", userID, teamID))
-	fmt.Println("1")
 	return fetchPagerDutyTeamMembershipWithRetries(d, meta, genError, 0, d.Get("role").(string))
 }
 
 func resourcePagerDutyTeamMembershipRead(d *schema.ResourceData, meta interface{}) error {
-	fmt.Println("3")
-
 	return fetchPagerDutyTeamMembership(d, meta, handleNotFoundError)
 }
 
@@ -161,7 +157,7 @@ func resourcePagerDutyTeamMembershipUpdate(d *schema.ResourceData, meta interfac
 	teamID := d.Get("team_id").(string)
 	role := d.Get("role").(string)
 
-	fmt.Printf("[DEBUG] Updating user: %s to team: %s with role: %s\n", userID, teamID, role)
+	log.Printf("[DEBUG] Updating user: %s to team: %s with role: %s", userID, teamID, role)
 
 	// To update existing membership resource, We can use the same API as creating a new membership.
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
@@ -192,7 +188,7 @@ func resourcePagerDutyTeamMembershipDelete(d *schema.ResourceData, meta interfac
 
 	userID, teamID := resourcePagerDutyParseColonCompoundID(d.Id())
 
-	fmt.Printf("[DEBUG] Removing user: %s from team: %s\n", userID, teamID)
+	log.Printf("[DEBUG] Removing user: %s from team: %s", userID, teamID)
 
 	// Extracting Escalation Policies ids where this team referenced
 	epsAssociatedToUser, err := extractEPsAssociatedToUser(client, userID)
@@ -207,11 +203,9 @@ func resourcePagerDutyTeamMembershipDelete(d *schema.ResourceData, meta interfac
 
 	// Retrying to give other resources (such as escalation policies) to delete
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
-		fmt.Printf("this shit1 %s\n", userID)
-
 		if _, err := client.Teams.RemoveUser(teamID, userID); err != nil {
 			if isErrCode(err, 400) {
-				fmt.Println("this shit2")
+				log.Printf("[ERROR] Error while removing user from team: %s", err.Error())
 				return nil
 			}
 
@@ -225,10 +219,11 @@ func resourcePagerDutyTeamMembershipDelete(d *schema.ResourceData, meta interfac
 	}
 
 	d.SetId("")
+	log.Printf("[DEBUG] Removed user: %s from team: %s", userID, teamID)
 
 	err = associateEPsBackToTeam(client, teamID, epsDissociatedFromTeam)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return err
 	}
 
@@ -277,15 +272,13 @@ func dissociateEPsFromTeam(c *pagerduty.Client, teamID string, eps []string) ([]
 		if retryErr != nil {
 			if !isErrCode(retryErr, 404) {
 				return nil, fmt.Errorf("%w; Error while trying to dissociate Team %q from Escalation Policy %q", retryErr, teamID, ep)
-			} else {
-				// Skip Escaltion Policies not found. This happens when a destroy
-				// operation is requested and Escalation Policy is destroyed first.
-				fmt.Println("SKIP here")
-				continue
 			}
+			// Skip Escaltion Policies not found. This happens when a destroy
+			// operation is requested and Escalation Policy is destroyed first.
+			continue
 		}
 		epsDissociatedFromTeam = append(epsDissociatedFromTeam, ep)
-		fmt.Printf("[DEBUG] EscalationPolicy %s removed from team %s\n", ep, teamID)
+		log.Printf("[DEBUG] EscalationPolicy %s removed from team %s", ep, teamID)
 	}
 	return epsDissociatedFromTeam, nil
 }
@@ -301,9 +294,10 @@ func associateEPsBackToTeam(c *pagerduty.Client, teamID string, eps []string) er
 			return nil
 		})
 		if retryErr != nil {
+			log.Printf("[ERROR IGNORED] Error while adding EP to team: %s", retryErr.Error())
 			continue
 		}
-		fmt.Printf("[DEBUG] EscalationPolicy %s added to team %s\n", ep, teamID)
+		log.Printf("[DEBUG] EscalationPolicy %s added to team %s", ep, teamID)
 	}
 	return nil
 }
