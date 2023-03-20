@@ -46,11 +46,11 @@ func resourcePagerDutyTeamMembership() *schema.Resource {
 }
 
 func maxRetries() int {
-	return 4
+	return 10
 }
 
 func retryDelayMs() int {
-	return 500
+	return 5000
 }
 
 func calculateDelay(retryCount int) time.Duration {
@@ -61,7 +61,6 @@ func fetchPagerDutyTeamMembershipWithRetries(d *schema.ResourceData, meta interf
 	if retryCount >= maxRetries() {
 		return nil
 	}
-
 	if err := fetchPagerDutyTeamMembership(d, meta, errCallback); err != nil {
 		return err
 	}
@@ -140,6 +139,7 @@ func resourcePagerDutyTeamMembershipCreate(d *schema.ResourceData, meta interfac
 	}
 
 	d.SetId(fmt.Sprintf("%s:%s", userID, teamID))
+
 	return fetchPagerDutyTeamMembershipWithRetries(d, meta, genError, 0, d.Get("role").(string))
 }
 

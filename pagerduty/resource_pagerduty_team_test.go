@@ -152,6 +152,7 @@ func testAccCheckPagerDutyTeamExists(n string) resource.TestCheckFunc {
 
 func testAccCheckPagerDutyTeamConfig(team string) string {
 	return fmt.Sprintf(`
+
 resource "pagerduty_team" "foo" {
   name        = "%s"
   description = "foo"

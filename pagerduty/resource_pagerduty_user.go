@@ -275,6 +275,7 @@ func resourcePagerDutyUserDelete(d *schema.ResourceData, meta interface{}) error
 		log.Printf("[ERROR] Deleting PagerDuty user %s", d.Id())
 		return err
 	}
+
 	log.Printf("[INFO] Deleting PagerDuty user %s %s", d.Id(), d.Get("email"))
 
 	// Retrying to give other resources (such as escalation policies) to delete
