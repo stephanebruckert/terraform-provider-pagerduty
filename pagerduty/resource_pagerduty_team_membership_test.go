@@ -161,8 +161,7 @@ func TestAccPagerDutyTeamMembership_DestroyWithUsersAndEscalationPolicyDependant
 				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUsersAndEscalationPolicyDependantUpdated(user, team, role, escalationPolicy, user2),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckPagerDutyTeamMembershipNoExists("pagerduty_team_membership.bar"),
-					testAccCheckPagerDutyUserNoExists("pagerduty_user.bar"),
-					testAccCheckPagerDutyUserExists("pagerduty_user.foo"),
+					testAccCheckPagerDutyUserNoExists("pagerduty_user.foo"),
 				),
 			},
 		},
