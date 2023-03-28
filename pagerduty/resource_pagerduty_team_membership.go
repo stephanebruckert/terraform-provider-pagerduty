@@ -46,11 +46,11 @@ func resourcePagerDutyTeamMembership() *schema.Resource {
 }
 
 func maxRetries() int {
-	return 10
+	return 4
 }
 
 func retryDelayMs() int {
-	return 5000
+	return 500
 }
 
 func calculateDelay(retryCount int) time.Duration {
@@ -205,8 +205,10 @@ func resourcePagerDutyTeamMembershipDelete(d *schema.ResourceData, meta interfac
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
 		if _, err := client.Teams.RemoveUser(teamID, userID); err != nil {
 			if isErrCode(err, 400) {
+				// Fixes "User cannot be removed as they belong to an escalation policy on this team"
 				log.Printf("[ERROR] Error while removing user from team: %s", err.Error())
 				return nil
+				//return resource.NonRetryableError(err)
 			}
 
 			return resource.NonRetryableError(err)
@@ -272,10 +274,11 @@ func dissociateEPsFromTeam(c *pagerduty.Client, teamID string, eps []string) ([]
 		if retryErr != nil {
 			if !isErrCode(retryErr, 404) {
 				return nil, fmt.Errorf("%w; Error while trying to dissociate Team %q from Escalation Policy %q", retryErr, teamID, ep)
+			} else {
+				// Skip Escaltion Policies not found. This happens when a destroy
+				// operation is requested and Escalation Policy is destroyed first.
+				continue
 			}
-			// Skip Escaltion Policies not found. This happens when a destroy
-			// operation is requested and Escalation Policy is destroyed first.
-			continue
 		}
 		epsDissociatedFromTeam = append(epsDissociatedFromTeam, ep)
 		log.Printf("[DEBUG] EscalationPolicy %s removed from team %s", ep, teamID)
@@ -294,8 +297,17 @@ func associateEPsBackToTeam(c *pagerduty.Client, teamID string, eps []string) er
 			return nil
 		})
 		if retryErr != nil {
+			// Fixes "Error while trying to associate back team"
 			log.Printf("[ERROR IGNORED] Error while adding EP to team: %s", retryErr.Error())
 			continue
+
+			//if !isErrCode(retryErr, 404) {
+			//	return fmt.Errorf("%w; Error while trying to associate back team %q to Escalation Policy %q. Resource succesfully deleted, but some team association couldn't be completed, so you need to run \"terraform plan -refresh-only\" and again \"terraform apply/destroy\" in order to remediate the drift", retryErr, teamID, ep)
+			//} else {
+			//	// Skip Escaltion Policies not found. This happens when a destroy
+			//	// operation is requested and Escalation Policy is destroyed first.
+			//	continue
+			//}
 		}
 		log.Printf("[DEBUG] EscalationPolicy %s added to team %s", ep, teamID)
 	}

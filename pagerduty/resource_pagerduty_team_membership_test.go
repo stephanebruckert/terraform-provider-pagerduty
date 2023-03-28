@@ -106,7 +106,14 @@ func TestAccPagerDutyTeamMembership_DestroyWithEscalationPolicyDependant(t *test
 	})
 }
 
-func TestAccPagerDutyTeamMembership_DestroyWithUserAndTeam(t *testing.T) {
+func TestAccPagerDutyTeamMembership_DestroyAllButOnlyOneUser(t *testing.T) {
+	// Destroy multiple memberships, delete one user with it, keep the other user
+	// It used to incorrectly display the following error:
+	// Error: PUT API call to https://api.pagerduty.com/teams/PF0RER5/escalation_policies/P6RSVX6 failed 400 Bad Request.
+	// Code: 2001, Errors: <nil>, Message: Escalation Policy has already been taken;
+	// 		Error while trying to associate back team "PF0RER5" to Escalation Policy "P6RSVX6". Resource succesfully deleted,
+	// 		but some team association couldn't be completed, so you need to run "terraform plan -refresh-only" and
+	// 		again "terraform apply/destroy" in order to remediate the drift
 	user := fmt.Sprintf("tf-%s", acctest.RandString(5))
 	user2 := fmt.Sprintf("tf-%s", acctest.RandString(5))
 	team := fmt.Sprintf("tf-%s", acctest.RandString(5))
@@ -119,7 +126,7 @@ func TestAccPagerDutyTeamMembership_DestroyWithUserAndTeam(t *testing.T) {
 		CheckDestroy: testAccCheckPagerDutyTeamMembershipDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUserAndTeam(user, team, role, escalationPolicy, user2),
+				Config: testAccCheckPagerDutyTeamMembershipDestroyAllButOnlyOneUser(user, team, role, escalationPolicy, user2),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckPagerDutyTeamMembershipExists("pagerduty_team_membership.foo"),
 					testAccCheckPagerDutyTeamExists("pagerduty_team.foo"),
@@ -127,7 +134,7 @@ func TestAccPagerDutyTeamMembership_DestroyWithUserAndTeam(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUserAndTeamUpdated(user, team, role, escalationPolicy),
+				Config: testAccCheckPagerDutyTeamMembershipDestroyAllButOnlyOneUserUpdated(user, team, role, escalationPolicy),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckPagerDutyTeamMembershipNoExists("pagerduty_team_membership.foo"),
 					testAccCheckPagerDutyTeamExists("pagerduty_team.foo"),
@@ -138,7 +145,9 @@ func TestAccPagerDutyTeamMembership_DestroyWithUserAndTeam(t *testing.T) {
 	})
 }
 
-func TestAccPagerDutyTeamMembership_DestroyWithUsersAndEscalationPolicyDependant(t *testing.T) {
+func TestAccPagerDutyTeamMembership_DestroyWithUserAndEscalationPolicyDependant(t *testing.T) {
+	// Destroy only membership and its user
+	// This seems to have always worked, just one more test
 	user := fmt.Sprintf("tf-%s", acctest.RandString(5))
 	user2 := fmt.Sprintf("tf-%s", acctest.RandString(5))
 	team := fmt.Sprintf("tf-%s", acctest.RandString(5))
@@ -151,14 +160,14 @@ func TestAccPagerDutyTeamMembership_DestroyWithUsersAndEscalationPolicyDependant
 		CheckDestroy: testAccCheckPagerDutyTeamMembershipDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUsersAndEscalationPolicyDependant(user, team, role, escalationPolicy, user2),
+				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUserAndEscalationPolicyDependant(user, team, role, escalationPolicy, user2),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckPagerDutyTeamMembershipExists("pagerduty_team_membership.foo"),
 					testAccCheckPagerDutyUserExists("pagerduty_user.foo"),
 				),
 			},
 			{
-				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUsersAndEscalationPolicyDependantUpdated(user, team, role, escalationPolicy, user2),
+				Config: testAccCheckPagerDutyTeamMembershipDestroyWithUserAndEscalationPolicyDependantUpdated(user, team, role, escalationPolicy, user2),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckPagerDutyTeamMembershipNoExists("pagerduty_team_membership.bar"),
 					testAccCheckPagerDutyUserNoExists("pagerduty_user.foo"),
@@ -169,6 +178,11 @@ func TestAccPagerDutyTeamMembership_DestroyWithUsersAndEscalationPolicyDependant
 }
 
 func TestAccPagerDutyTeamMembership_DestroyWithOnlyUserAndTeam(t *testing.T) {
+	// Destroy a team and its only user
+	// It used to incorrectly display the following error:
+	// > Error: DELETE API call to https://api.pagerduty.com/teams/:id/users/:id failed 400 Bad Request.
+	// > Code: 2001, Errors: [User cannot be removed as they belong to an escalation policy on this team],
+	// > Message: Invalid Input Provided
 	user := fmt.Sprintf("tf-%s", acctest.RandString(5))
 	team := fmt.Sprintf("tf-%s", acctest.RandString(5))
 	role := "manager"
@@ -390,7 +404,7 @@ resource "pagerduty_escalation_policy" "foo" {
 `, user, team, role, escalationPolicy)
 }
 
-func testAccCheckPagerDutyTeamMembershipDestroyWithUserAndTeam(user, team, role, escalationPolicy, otherUser string) string {
+func testAccCheckPagerDutyTeamMembershipDestroyAllButOnlyOneUser(user, team, role, escalationPolicy, otherUser string) string {
 	return fmt.Sprintf(`
 resource "pagerduty_team" "foo" {
   name        = "%[2]v"
@@ -443,7 +457,7 @@ resource "pagerduty_escalation_policy" "foo" {
 `, user, team, role, escalationPolicy, otherUser)
 }
 
-func testAccCheckPagerDutyTeamMembershipDestroyWithUserAndTeamUpdated(user, team, role, escalationPolicy string) string {
+func testAccCheckPagerDutyTeamMembershipDestroyAllButOnlyOneUserUpdated(user, team, role, escalationPolicy string) string {
 	return fmt.Sprintf(`
 resource "pagerduty_team" "foo" {
   name        = "%[2]v"
@@ -471,7 +485,7 @@ resource "pagerduty_escalation_policy" "foo" {
 `, user, team, role, escalationPolicy)
 }
 
-func testAccCheckPagerDutyTeamMembershipDestroyWithUsersAndEscalationPolicyDependant(user, team, role, escalationPolicy, otherUser string) string {
+func testAccCheckPagerDutyTeamMembershipDestroyWithUserAndEscalationPolicyDependant(user, team, role, escalationPolicy, otherUser string) string {
 	return fmt.Sprintf(`
 resource "pagerduty_user" "foo" {
   name = "%[1]v"
@@ -505,7 +519,7 @@ resource "pagerduty_escalation_policy" "foo" {
 `, user, team, role, escalationPolicy, otherUser)
 }
 
-func testAccCheckPagerDutyTeamMembershipDestroyWithUsersAndEscalationPolicyDependantUpdated(user, team, role, escalationPolicy, otherUser string) string {
+func testAccCheckPagerDutyTeamMembershipDestroyWithUserAndEscalationPolicyDependantUpdated(user, team, role, escalationPolicy, otherUser string) string {
 	return fmt.Sprintf(`
 resource "pagerduty_team" "foo" {
   name        = "%[2]v"
