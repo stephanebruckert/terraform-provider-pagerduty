@@ -205,10 +205,7 @@ func resourcePagerDutyTeamMembershipDelete(d *schema.ResourceData, meta interfac
 	retryErr := resource.Retry(2*time.Minute, func() *resource.RetryError {
 		if _, err := client.Teams.RemoveUser(teamID, userID); err != nil {
 			if isErrCode(err, 400) {
-				// Fixes "User cannot be removed as they belong to an escalation policy on this team"
-				log.Printf("[ERROR] Error while removing user from team: %s", err.Error())
-				return nil
-				//return resource.NonRetryableError(err)
+				return resource.RetryableError(err)
 			}
 
 			return resource.NonRetryableError(err)
@@ -275,7 +272,7 @@ func dissociateEPsFromTeam(c *pagerduty.Client, teamID string, eps []string) ([]
 			if !isErrCode(retryErr, 404) {
 				return nil, fmt.Errorf("%w; Error while trying to dissociate Team %q from Escalation Policy %q", retryErr, teamID, ep)
 			} else {
-				// Skip Escaltion Policies not found. This happens when a destroy
+				// Skip Escalation Policies not found. This happens when a destroy
 				// operation is requested and Escalation Policy is destroyed first.
 				continue
 			}
@@ -286,29 +283,45 @@ func dissociateEPsFromTeam(c *pagerduty.Client, teamID string, eps []string) ([]
 	return epsDissociatedFromTeam, nil
 }
 
+// Global map to keep track of operations already done, so we don't do them twice.
+// This helps to fix a bug where in one case the below function `associateEPsBackToTeam` is run twice
+// which leads to the API returning an unexpected 400 on the second run.
+// See test TestAccPagerDutyTeamMembership_DestroyAllButKeepOneUser
+var previousOperations = map[string]bool{}
+
 func associateEPsBackToTeam(c *pagerduty.Client, teamID string, eps []string) error {
 	for _, ep := range eps {
+		id := fmt.Sprintf("%s - %s", ep, teamID)
+
 		retryErr := resource.Retry(10*time.Second, func() *resource.RetryError {
 			_, err := c.Teams.AddEscalationPolicy(teamID, ep)
 			if err != nil && !isErrCode(err, 404) {
 				time.Sleep(2 * time.Second)
+
+				// Fixes unexpected "Error while trying to associate back team ... to escalation policy"
+				_, operationAlreadyDone := previousOperations[id]
+				if operationAlreadyDone {
+					log.Printf("[ERROR IGNORED] Error while adding EP to team: %s", err.Error())
+					return nil
+				}
+
 				return resource.RetryableError(err)
 			}
 			return nil
 		})
 		if retryErr != nil {
-			// Fixes "Error while trying to associate back team"
-			log.Printf("[ERROR IGNORED] Error while adding EP to team: %s", retryErr.Error())
-			continue
-
-			//if !isErrCode(retryErr, 404) {
-			//	return fmt.Errorf("%w; Error while trying to associate back team %q to Escalation Policy %q. Resource succesfully deleted, but some team association couldn't be completed, so you need to run \"terraform plan -refresh-only\" and again \"terraform apply/destroy\" in order to remediate the drift", retryErr, teamID, ep)
-			//} else {
-			//	// Skip Escaltion Policies not found. This happens when a destroy
-			//	// operation is requested and Escalation Policy is destroyed first.
-			//	continue
-			//}
+			if !isErrCode(retryErr, 404) {
+				return fmt.Errorf("%w; Error while trying to associate back team %q to Escalation Policy %q. Resource successfully deleted, but some team association couldn't be completed, so you need to run \"terraform plan -refresh-only\" and again \"terraform apply/destroy\" in order to remediate the drift", retryErr, teamID, ep)
+			} else {
+				// Skip Escaltion Policies not found. This happens when a destroy
+				// operation is requested and Escalation Policy is destroyed first.
+				continue
+			}
 		}
+
+		// Remember operation was already done in case it runs again
+		previousOperations[id] = true
+
 		log.Printf("[DEBUG] EscalationPolicy %s added to team %s", ep, teamID)
 	}
 	return nil
